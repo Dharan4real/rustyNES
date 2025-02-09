@@ -44,14 +44,14 @@ impl Cpu {
 }
 
 enum Flags6502 {
-    C = 1 << 0,
-    Z = 1 << 1,
-    I = 1 << 2,
-    D = 1 << 3,
-    B = 1 << 4,
-    U = 1 << 5,
-    O = 1 << 6,
-    N = 1 << 7
+    Carry = 1 << 0,
+    Zero = 1 << 1,
+    InterruptDisable = 1 << 2,
+    DecimalMode = 1 << 3,
+    BreakCommand = 1 << 4,      //no CPU effect
+    Xxx = 1 << 5,               //no CPU effect
+    Overflow = 1 << 6,
+    Negative = 1 << 7
 }
 
 impl Flags6502 {
@@ -60,34 +60,107 @@ impl Flags6502 {
     fn set_flag(&mut self, v: bool) {}
 }
 
+#[derive(Debug, PartialEq)]
 struct Instruction {
     name: String,
-    operate: fn(&mut Cpu) -> u8,
-    addr_mode: fn(&mut Cpu) -> u8,
+    opcode: Opcode,
+    addr_mode: AddressingMode,
     cycles: u8 
 }
 
-impl Instruction {
-    // fn default(&self) -> Self {
-    //     Instruction {
-    //         name: String::new(),
-    //         operate: 0,
-    //         addr_mode: 0,
-    //         0
-    //     }
-    // }
+//Addressing modes
+#[allow(non_camel_case_types)]
+#[derive(Debug, PartialEq)]
+pub enum AddressingMode {
+    Implied,
+    Immediate,
+    ZeroPage,
+    ZeroPage_X,
+    ZeroPage_Y,
+    Relative,
+    Absolute,
+    Absolute_X,
+    Absolute_Y,
+    Indirect,
+    Indirect_X,
+    Indirect_Y
 }
 
-//Addressing modes
-fn imp() -> u8 { 0 }
-fn imm() -> u8 { 0 }
-fn zp0() -> u8 { 0 }
-fn zpx() -> u8 { 0 }
-fn zpy() -> u8 { 0 }
-fn rel() -> u8 { 0 }
-fn abs() -> u8 { 0 }
-fn abx() -> u8 { 0 }
-fn aby() -> u8 { 0 }
-fn ind() -> u8 { 0 }
-fn inx() -> u8 { 0 }
-fn iny() -> u8 { 0 }
+#[derive(Debug, PartialEq)]
+pub enum Opcode {
+    Adc,    //Add with carry
+    And,    //Logical AND
+    Asl,    //Arithmetic shift left
+    Bcc,    //Branch if carry clear
+    Bcs,    //Branch if carry set
+    Beq,    //Branch if equal
+    Bit,    //Bit test
+    Bmi,    //Branch if minus
+    Bne,    //Branch if not equal
+    Bpl,    //Branch if Positive
+    Brk,    //Break //Force interrupt
+    Bvc,    //Branch if overflow clear
+    Bvs,    //Branch if overflow set
+    Clc,    //Clear carry flag
+    Cld,    //Clear decimal mode
+    Cli,    //Clear interrupt disable
+    Clv,    //Clear overflow flag
+    Cmp,    //Compare
+    Cpx,    //Compare X register
+    Cpy,    //Compare Y register
+    Dec,    //Decrement memory
+    Dex,    //Decrement X register
+    Dey,    //Decrement Y register
+    Eor,    //Exclusive OR
+    Inc,    //Increment memory
+    Inx,    //Increment X register
+    Iny,    //INCREMENT Y register
+    Jmp,    //Jump
+    Jsr,    //Jump to subroutine
+    Lda,    //Load accumulator
+    Ldx,    //Load X register
+    Ldy,    //Load Y register
+    Lsr,    //Logical shift right
+    Nop,    //No operation
+    Ora,    //Logical Inclusive OR
+    Pha,    //Push Accumulator
+    Php,
+    Pla,
+    Plp,
+    Rol,
+    Ror,
+    Rti,
+    Rts,
+    Sbc,
+    Sec,
+    Sed,
+    Sei,
+    Sta,
+    Stx,
+    Sty,
+    Tax,
+    Tay,
+    Tsx,
+    Txa,
+    Txs,
+    Tya,
+    Kil
+}
+
+impl Instruction {
+    fn new(name: String, opcode: Opcode, addr_mode: AddressingMode, cycles: u8) -> Self {
+        Instruction {
+            name,
+            opcode,
+            addr_mode,
+            cycles
+        }
+    }
+}
+
+#[test]
+fn cleck_instruction_creation() {
+    let inst = Instruction::new(String::from("LDA"), Opcode::Lda, AddressingMode::Absolute, 3);
+
+    assert_eq!(inst, Instruction { name: String::from("LDA"), opcode: Opcode::Lda, addr_mode: AddressingMode::Absolute, cycles: 3 })
+}
