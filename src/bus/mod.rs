@@ -1,17 +1,21 @@
-use crate::cpu_6502::Cpu;
+use crate::cpu_6502::*;
 
 pub struct Bus {
-    cpu: Cpu,
     ram: [u8; 64 * 1024],
+    cpu: *mut Cpu,
 }
 
 impl Bus {
-    pub fn new() -> Self {
+    pub fn new(cpu: &mut Cpu) -> Self {
         Bus {
-            cpu: Cpu::new(),
+            cpu: cpu,
             ram: [0x00; 64 * 1024],
         }
     }
+
+    // pub fn connect_to_cpu(&mut self, cpu_ptr: *mut Cpu) {
+    //     self.cpu = cpu_ptr;
+    // }
 
     #[allow(unused_comparisons)]
     pub fn read(&self, addr: u16, readonly: bool) -> u8 {

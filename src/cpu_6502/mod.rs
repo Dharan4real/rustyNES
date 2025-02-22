@@ -38,6 +38,10 @@ impl Cpu {
         }
     }
 
+    pub fn connect_to_bus(&mut self, bus_ptr: *mut Bus) {
+        self.bus = bus_ptr;
+    }
+
     pub fn read(&self, addr: u16) -> u8 {
         unsafe {
             return (*self.bus).read(addr, true);
@@ -113,6 +117,7 @@ pub enum Flags6502 {
 
 mod tests {
     use super::*;
+    use crate::bus::*;
 
     #[test]
     fn test_flags() {
@@ -141,5 +146,16 @@ mod tests {
         
         // cpu.set_flag_status(Flags6502::Negative, true);
         assert_eq!(cpu.get_flag(Flags6502::Negative), 0);
+    }
+
+    #[test]
+    fn test_cpu_read_write() {
+        let mut cpu = Cpu::new();
+        let mut bus = Bus::new(&mut cpu);
+        // bus.connect_to_cpu(cpu);
+        cpu.connect_to_bus(&mut bus);
+        
+        cpu.write(1, 21);
+        assert_eq!(cpu.read(1), 21);
     }
 }
