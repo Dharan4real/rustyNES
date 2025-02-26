@@ -1,21 +1,29 @@
 pub mod instruction;
 
 extern crate fxhash;
+
 use fxhash::FxHashMap;
 use instruction::*;
 use crate::bus::*;
+
+const NME_BASE: u16 = 0xFFFA;
+const RSR_BASE: u16 = 0xFFFC;
+const IRQ_BASE: u16 = 0xFFFE;
 
 pub struct Cpu {
     a_reg: u8,    // Accumulator Register
     x_reg: u8,    // X Register
     y_reg: u8,    // Y Register
-    stk_ptr: u16, // Stack Pointer points to a location on the Bus
-    pc: u8,       // Program Counter
+    stk_ptr: u8, // Stack Pointer points to a location on the Bus
+    pc: u16,       // Program Counter
     status: u8,   // Status Register
+    bus: *mut Bus,
     fetched: u8,
     cycles_remaining: u8,
     clock_count: usize,
-    bus: *mut Bus,
+    addr_abs: u16,
+    addr_rel: u16,
+    opcode: u8,
     next_instruction: Option<Instruction>,
 }
 
@@ -26,14 +34,16 @@ impl Cpu {
             a_reg: 0x00,
             x_reg: 0x00,
             y_reg: 0x00,
-            stk_ptr: 0x0000,
-            pc: 0x00,
+            stk_ptr: 0x00,
+            pc: 0x0000,
             status: 0x00,
-
+            bus: std::ptr::null_mut(),
             fetched: 0,
             cycles_remaining: 0,
             clock_count: 0,
-            bus: std::ptr::null_mut(),
+            addr_abs: 0x0000,
+            addr_rel: 0x0000,
+            opcode: 0x00,
             next_instruction: None,
         }
     }
@@ -55,14 +65,90 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
+        self.addr_abs = RSR_BASE;
+        let lo: u16 = self.addr_abs + 0;
+        let hi: u16 = self.addr_abs + 1;
+        self.pc = hi << 8 | lo;
+
         self.a_reg = 0x00;
+        self.x_reg = 0x00;
+        self.y_reg = 0x00;
+        self.stk_ptr = 0xFD;
+        self.status = 0x00 | Flags6502::Unused as u8;
+
+        self.addr_abs = 0x0000;
+        self.addr_rel = 0x0000;
+
+        self.fetched = 0x00;
+
+        self.cycles_remaining = 8;
     }
 
-    pub fn irq() {}
+    pub fn irq(&mut self) {
+        if self.get_flag(Flags6502::InterruptDisable) == 0 {
+            self.write(0x0100 + self.stk_ptr as u16, (self.pc >> 8) as u8 & 0x00FF);
+            self.stk_ptr -= 1;
+            self.write(0x0100 + self.stk_ptr as u16, self.pc as u8 & 0x00FF);
+            self.stk_ptr -= 1;
 
-    pub fn nmi() {}
+            self.set_flag_status(Flags6502::BreakCommand, false);
+            self.set_flag_status(Flags6502::InterruptDisable, true);
+            self.set_flag_status(Flags6502::Unused, true);
+            self.write(0x0000 + self.stk_ptr as u16, self.status);
+            self.stk_ptr -= 1;
 
-    pub fn clock() {}
+            self.addr_abs = IRQ_BASE;
+            let lo: u16 = self.addr_abs + 0;
+            let hi: u16 = self.addr_abs + 1;
+            self.pc = hi << 8 | lo;
+    
+            self.cycles_remaining = 7;
+        }
+    }
+
+    pub fn nmi(&mut self) {
+        self.write(0x0100 + self.stk_ptr as u16, (self.pc >> 8) as u8 & 0x00FF);
+            self.stk_ptr -= 1;
+            self.write(0x0100 + self.stk_ptr as u16, self.pc as u8 & 0x00FF);
+            self.stk_ptr -= 1;
+
+            self.set_flag_status(Flags6502::BreakCommand, false);
+            self.set_flag_status(Flags6502::InterruptDisable, true);
+            self.set_flag_status(Flags6502::Unused, true);
+            self.write(0x0000 + self.stk_ptr as u16, self.status);
+            self.stk_ptr -= 1;
+
+            self.addr_abs = NME_BASE;
+            let lo: u16 = self.addr_abs + 0;
+            let hi: u16 = self.addr_abs + 1;
+            self.pc = hi << 8 | lo;
+    
+            self.cycles_remaining = 8;
+    }
+
+    pub fn clock(&mut self) {
+        if self.cycles_remaining == 0 {
+            self.opcode = self.read(self.pc);
+
+            self.set_flag_status(Flags6502::Unused, true);
+
+            self.pc += 1;
+
+            self.cycles_remaining = CPU_INSTRUCTIONS[self.opcode as usize].cycles;
+
+            let additional_cycle_addr_mode: u8 = (CPU_INSTRUCTIONS[self.opcode as usize].addr_mode).addr_mode_operation(self);
+
+            let additional_cycle_opcode: u8 = (CPU_INSTRUCTIONS[self.opcode as usize].opcode).opcode_operation();
+
+            self.cycles_remaining += additional_cycle_addr_mode & additional_cycle_opcode;
+
+            self.set_flag_status(Flags6502::Unused, true);
+
+            self.clock_count += 1;
+
+            self.cycles_remaining -= 1;
+        }
+    }
 
     pub fn is_complete() -> bool {
         false
@@ -102,6 +188,12 @@ impl Cpu {
             self.unset_flag(flag);
         }
     }
+
+    fn fetch(&mut self) {
+        if !(CPU_INSTRUCTIONS[self.opcode as usize].addr_mode == AddressingMode::Implied) {
+            self.fetched = self.read(self.addr_abs);
+        }
+    }
 }
 
 pub enum Flags6502 {
@@ -115,9 +207,9 @@ pub enum Flags6502 {
     Negative = 1 << 7,
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bus::*;
 
     #[test]
     fn test_flags() {
@@ -152,10 +244,24 @@ mod tests {
     fn test_cpu_read_write() {
         let mut cpu = Cpu::new();
         let mut bus = Bus::new(&mut cpu);
-        // bus.connect_to_cpu(cpu);
         cpu.connect_to_bus(&mut bus);
         
         cpu.write(1, 21);
         assert_eq!(cpu.read(1), 21);
+    }
+
+    #[test]
+    fn test_reset_function() {
+        let mut cpu = Cpu::new();
+
+        cpu.a_reg = 0x01;
+        cpu.x_reg = 0x10;
+        cpu.y_reg = 0xDA;
+
+        cpu.reset();
+
+        assert_eq!((cpu.a_reg, cpu.x_reg, cpu.y_reg), (0x00, 0x00, 0x00));
+        assert_eq!(cpu.stk_ptr, 0xFD);
+        assert_eq!(cpu.cycles_remaining, 8);
     }
 }

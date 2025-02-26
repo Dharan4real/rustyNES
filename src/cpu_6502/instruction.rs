@@ -9,6 +9,18 @@ pub struct Instruction {
     pub cycles: u8 
 }
 
+impl Instruction {
+    fn new(name: &'static str, opcode: Opcode, addr_mode: AddressingMode, cycles: u8) -> Self {
+        Instruction {
+            name,
+            opcode,
+            addr_mode,
+            cycles
+        }
+    }
+    
+}
+
 //Addressing modes
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq)]
@@ -28,10 +40,136 @@ pub enum AddressingMode {
 }
 
 impl AddressingMode {
-    fn addr_mode(addr_mode: AddressingMode) -> u8 {
-        match addr_mode {
-            AddressingMode::Implied => { 0 }
-            _ => 0
+    pub fn addr_mode_operation(&self, cpu: &mut Cpu) -> u8 {
+        use self::AddressingMode::*;
+
+        match self {
+            Implied => { 
+                cpu.fetched = cpu.a_reg;
+
+                0
+             }
+             Immediate => {
+                cpu.pc += 1;
+                cpu.addr_abs = cpu.pc;
+
+                0                
+             }
+             ZeroPage => {
+                cpu.addr_abs = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+                cpu.addr_abs &= 0x00FF;
+
+                0
+             }
+             ZeroPage_X => {
+                cpu.addr_abs = cpu.read(cpu.pc + (cpu.x_reg as u16)) as u16;
+                cpu.pc += 1;
+                cpu.addr_abs &= 0x00FF;
+
+                0
+             }
+             ZeroPage_Y => {
+                cpu.addr_abs = cpu.read(cpu.pc + (cpu.y_reg as u16)) as u16;
+                cpu.pc += 1;
+                cpu.addr_abs &= 0x00FF;
+
+                0
+             }
+             Relative => {
+                cpu.addr_rel = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+
+                if cpu.addr_rel & 0x80 != 0 {
+                    cpu.addr_rel |= 0xFF00;
+                }
+
+                0
+             }
+             Absolute => {
+                let lo: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+                let hi: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+
+                cpu.addr_abs = hi << 8 | lo;
+
+                0
+             }
+             Absolute_X => {
+                let lo: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+                let hi: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+
+                cpu.addr_abs = (hi << 8 | lo) + cpu.x_reg as u16;
+
+                if (cpu.addr_abs & 0xFF00) != (hi << 8) {
+                    return 1;
+                } 
+                else {
+                    return 0;
+                }
+             }
+             Absolute_Y => {
+                let lo: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+                let hi: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+
+                cpu.addr_abs = (hi << 8 | lo) + cpu.y_reg as u16;
+
+                if (cpu.addr_abs & 0xFF00) != (hi << 8) {
+                    return 1;
+                } 
+                else {
+                    return 0;
+                }
+             }
+             Indirect => {
+                let ptr_lo: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+                let ptr_hi: u16 = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+
+                let ptr: u16 = (ptr_hi << 8) | ptr_lo;
+
+                if ptr_lo == 0x00FF {
+                    cpu.addr_abs = ((cpu.read(ptr & 0xFF00) as u16) << 8) | (cpu.read(ptr + 0) as u16);
+                }
+                else {
+                    cpu.addr_abs = ((cpu.read(ptr + 1) as u16) << 8) | (cpu.read(ptr + 0) as u16);
+                }
+
+                0
+             }
+             Indirect_X => {
+                let temp = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+
+                let lo = cpu.read((temp + (cpu.x_reg as u16)) & 0x00FF) as u16;
+                let hi = cpu.read((temp + (cpu.x_reg as u16) + 1) & 0x00FF) as u16;
+
+                cpu.addr_abs = (hi << 8) | lo;
+
+                1
+             }
+             Indirect_Y => {
+                let temp = cpu.read(cpu.pc) as u16;
+                cpu.pc += 1;
+
+                let lo = cpu.read(temp & 0x00FF) as u16;
+                let hi = cpu.read((temp + 1) & 0x00FF) as u16;
+
+                cpu.addr_abs = ((hi << 8) | lo) + cpu.x_reg as u16;
+
+                if cpu.addr_abs & 0xFF00 != (hi << 8) {
+                    return 1;
+                }
+                else {
+                    return 0;
+                }
+             }
         }
     }
 }
@@ -97,16 +235,15 @@ pub enum Opcode {
     Kil
 }
 
-impl Instruction {
-    fn new(name: &'static str, opcode: Opcode, addr_mode: AddressingMode, cycles: u8) -> Self {
-        Instruction {
-            name,
-            opcode,
-            addr_mode,
-            cycles
+impl Opcode {
+    pub fn opcode_operation(&self) -> u8 {
+        use self::Opcode::*;
+
+        match self {
+            Adc => 0,
+            _ => 0
         }
     }
-    
 }
 
 lazy_static!{
@@ -142,5 +279,15 @@ mod tests {
         assert_eq!(inst, CPU_INSTRUCTIONS[1]);
         let inst = Instruction::new( "STA", Opcode::Sta, AddressingMode::Indirect_X, 6 );    
         assert_eq!(inst, CPU_INSTRUCTIONS[129]);
+    }
+
+    #[test]
+    fn test_addr_modes() {
+        let mut cpu = Cpu::new();
+        
+        let instruction = &CPU_INSTRUCTIONS[cpu.opcode as usize];
+
+        let res = instruction.addr_mode.addr_mode_operation(&mut cpu);
+        assert_eq!(res, 0);
     }
 }
