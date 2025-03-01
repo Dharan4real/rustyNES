@@ -17,8 +17,7 @@ impl Instruction {
             addr_mode,
             cycles
         }
-    }
-    
+    }    
 }
 
 //Addressing modes
@@ -704,6 +703,14 @@ impl Opcode {
 
                 0
             }
+            Rts => {
+                cpu.stk_ptr += 1;
+                cpu.pc = cpu.read(0x0100 + cpu.stk_ptr as u16) as u16 - 1;
+                cpu.stk_ptr += 1;
+                cpu.pc |= (cpu.read(0x0100 + cpu.stk_ptr as u16) as u16) << 8;
+
+                0
+            }
             Sbc => {
                 cpu.fetch();
 
@@ -720,8 +727,84 @@ impl Opcode {
 
                 1
             }
+            Sec => {
+                cpu.set_flag(Carry, true);
 
-            _ => 0
+                0
+            }
+            Sed => {
+                cpu.set_flag(DecimalMode, true);
+
+                0
+            }
+            Sei => {
+                cpu.set_flag(InterruptDisable, true);
+
+                0
+            }
+            Sta => {
+                cpu.write(cpu.addr_abs, cpu.a_reg);
+
+                0
+            }
+            Stx => {
+                cpu.write(cpu.addr_abs, cpu.x_reg);
+
+                0
+            }
+            Sty => {
+                cpu.write(cpu.addr_abs, cpu.y_reg);
+
+                0
+            }
+            Tax => {
+                cpu.x_reg = cpu.a_reg;
+
+                cpu.set_flag(Zero, cpu.x_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.x_reg & 0x80) != 0);
+
+                0
+            }
+            Tay => {
+                cpu.y_reg = cpu.a_reg;
+
+                cpu.set_flag(Zero, cpu.y_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.y_reg & 0x80) != 0);
+
+                0
+            }
+            Tsx => {
+                cpu.x_reg = cpu.stk_ptr;
+
+                cpu.set_flag(Zero, cpu.x_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.x_reg & 0x80) != 0);
+
+                0
+            }
+            Txa => {
+                cpu.a_reg = cpu.x_reg;
+
+                cpu.set_flag(Zero, cpu.a_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.a_reg & 0x80) != 0);
+
+                0
+            }
+            Txs => {
+                cpu.stk_ptr = cpu.x_reg;
+
+                0
+            }
+            Tya => {
+                cpu.a_reg = cpu.y_reg;
+
+                cpu.set_flag(Zero, cpu.a_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.a_reg & 0x80) != 0);
+
+                0
+            }
+            Kil => {
+                0
+            }
         }
     }
 }
