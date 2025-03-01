@@ -91,9 +91,9 @@ impl Cpu {
             self.write(0x0100 + self.stk_ptr as u16, self.pc as u8 & 0x00FF);
             self.stk_ptr -= 1;
 
-            self.set_flag_status(Flags6502::BreakCommand, false);
-            self.set_flag_status(Flags6502::InterruptDisable, true);
-            self.set_flag_status(Flags6502::Unused, true);
+            self.set_flag(Flags6502::BreakCommand, false);
+            self.set_flag(Flags6502::InterruptDisable, true);
+            self.set_flag(Flags6502::Unused, true);
             self.write(0x0000 + self.stk_ptr as u16, self.status);
             self.stk_ptr -= 1;
 
@@ -112,9 +112,9 @@ impl Cpu {
             self.write(0x0100 + self.stk_ptr as u16, self.pc as u8 & 0x00FF);
             self.stk_ptr -= 1;
 
-            self.set_flag_status(Flags6502::BreakCommand, false);
-            self.set_flag_status(Flags6502::InterruptDisable, true);
-            self.set_flag_status(Flags6502::Unused, true);
+            self.set_flag(Flags6502::BreakCommand, false);
+            self.set_flag(Flags6502::InterruptDisable, true);
+            self.set_flag(Flags6502::Unused, true);
             self.write(0x0000 + self.stk_ptr as u16, self.status);
             self.stk_ptr -= 1;
 
@@ -130,7 +130,7 @@ impl Cpu {
         if self.cycles_remaining == 0 {
             self.opcode = self.read(self.pc);
 
-            self.set_flag_status(Flags6502::Unused, true);
+            self.set_flag(Flags6502::Unused, true);
 
             self.pc += 1;
 
@@ -138,11 +138,11 @@ impl Cpu {
 
             let additional_cycle_addr_mode: u8 = (CPU_INSTRUCTIONS[self.opcode as usize].addr_mode).addr_mode_operation(self);
 
-            let additional_cycle_opcode: u8 = (CPU_INSTRUCTIONS[self.opcode as usize].opcode).opcode_operation();
+            let additional_cycle_opcode: u8 = (CPU_INSTRUCTIONS[self.opcode as usize].opcode).opcode_operation(self);
 
             self.cycles_remaining += additional_cycle_addr_mode & additional_cycle_opcode;
 
-            self.set_flag_status(Flags6502::Unused, true);
+            self.set_flag(Flags6502::Unused, true);
 
             self.clock_count += 1;
 
@@ -172,21 +172,14 @@ impl Cpu {
         }
     }
 
-    fn set_flag(&mut self, flag: Flags6502) {
-        self.status |= flag as u8;
+    fn set_flag(&mut self, flag: Flags6502, v: bool) {
+        if v {
+            self.status |= flag as u8;
+        }
     }
 
     fn unset_flag(&mut self, flag: Flags6502) {
         self.status &= !(flag as u8);
-    }
-    
-    fn set_flag_status(&mut self, flag: Flags6502, v: bool) {
-        if v {
-            self.set_flag(flag);
-        }
-        else {
-            self.unset_flag(flag);
-        }
     }
 
     fn fetch(&mut self) {
@@ -215,28 +208,28 @@ mod tests {
     fn test_flags() {
         let mut cpu = Cpu::new();
 
-        cpu.set_flag_status(Flags6502::Carry, true);
+        cpu.set_flag(Flags6502::Carry, true);
         assert_eq!(cpu.get_flag(Flags6502::Carry),1);
 
-        cpu.set_flag_status(Flags6502::Zero, true);
+        cpu.set_flag(Flags6502::Zero, true);
         assert_eq!(cpu.get_flag(Flags6502::Zero), 1);
 
-        cpu.set_flag_status(Flags6502::InterruptDisable, true);
+        cpu.set_flag(Flags6502::InterruptDisable, true);
         assert_eq!(cpu.get_flag(Flags6502::InterruptDisable), 1);
         
-        cpu.set_flag_status(Flags6502::DecimalMode, true);
+        cpu.set_flag(Flags6502::DecimalMode, true);
         assert_eq!(cpu.get_flag(Flags6502::DecimalMode), 1);
         
-        cpu.set_flag_status(Flags6502::BreakCommand, true);
+        cpu.set_flag(Flags6502::BreakCommand, true);
         assert_eq!(cpu.get_flag(Flags6502::BreakCommand), 1);
         
-        cpu.set_flag_status(Flags6502::Unused, true);
+        cpu.set_flag(Flags6502::Unused, true);
         assert_eq!(cpu.get_flag(Flags6502::Unused), 1);
         
-        cpu.set_flag_status(Flags6502::Overflow, true);
+        cpu.set_flag(Flags6502::Overflow, true);
         assert_eq!(cpu.get_flag(Flags6502::Overflow), 1);
         
-        // cpu.set_flag_status(Flags6502::Negative, true);
+        // cpu.set_flag(Flags6502::Negative, true);
         assert_eq!(cpu.get_flag(Flags6502::Negative), 0);
     }
 

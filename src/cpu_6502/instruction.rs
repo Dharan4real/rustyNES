@@ -236,11 +236,211 @@ pub enum Opcode {
 }
 
 impl Opcode {
-    pub fn opcode_operation(&self) -> u8 {
+    pub fn opcode_operation(&self, cpu: &mut Cpu) -> u8 {
         use self::Opcode::*;
+        use self::AddressingMode::*;
+        use Flags6502::*;
 
         match self {
-            Adc => 0,
+            Adc => {
+                cpu.fetch();
+
+                let temp = cpu.a_reg as u16 + cpu.fetched as u16 + cpu.get_flag(Carry) as u16;
+
+                cpu.set_flag(Carry, temp > 255);
+                cpu.set_flag(Zero, (temp & 0x00FF) == 0);
+                cpu.set_flag(Overflow, (((cpu.a_reg as u16 ^ temp) & !(cpu.a_reg as u16 ^ cpu.fetched as u16)) & 0x0080) != 0);
+                cpu.set_flag(Negative, (temp & 0x80) != 0);
+
+                cpu.a_reg = (temp & 0x00FF) as u8;
+
+                1
+            }
+            And => {
+                cpu.fetch();
+
+                cpu.a_reg &= cpu.fetched;
+
+                cpu.set_flag(Zero, cpu.a_reg == 0);
+                cpu.set_flag(Negative, (cpu.a_reg & 0x80) != 0);          
+
+                1
+            }
+            Asl => {
+                cpu.fetch();
+
+                let temp = (cpu.fetched as u16) << 1;
+
+                cpu.set_flag(Carry, (temp & 0xFF00) > 0);
+                cpu.set_flag(Zero, (temp & 0x00FF) == 0);
+                cpu.set_flag(Negative, (temp & 0x80) != 0);
+
+                if CPU_INSTRUCTIONS[cpu.opcode as usize].addr_mode == Implied {
+                    cpu.a_reg = (temp & 0x00FF) as u8;
+                }
+                else {
+                    cpu.write(cpu.addr_abs, (temp & 0x00FF) as u8);
+                }
+
+                0
+            }
+            Bcc => {
+                if cpu.get_flag(Carry) == 0 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_rel;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc &0xFF00) {
+                        cpu.cycles_remaining += 1;
+                    }
+                    
+                    cpu.pc = cpu.addr_abs;
+                }
+
+                0
+            }
+            Bcs => {
+                if cpu.get_flag(Carry) == 1 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_rel;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc & 0xFF00) {
+                        cpu.cycles_remaining += 1;
+                    }
+
+                    cpu.pc = cpu.addr_abs;
+                }
+
+                0
+            }
+            Beq => {
+                if cpu.get_flag(Zero) == 1 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_rel;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc & 0xFF00) {
+                        cpu.cycles_remaining += 1;
+                    }
+
+                    cpu.pc = cpu.addr_abs;                    
+                }
+
+                0
+            }
+            Bit => {
+                cpu.fetch();
+
+                let temp = cpu.a_reg & cpu.fetched;
+
+                cpu.set_flag(Zero, temp == 0);
+                cpu.set_flag(Overflow, (cpu.fetched & (1 << 6)) != 0);
+                cpu.set_flag(Negative, (cpu.fetched & (1 << 7)) != 0);
+                
+                0
+            }
+            Bmi => {
+                if cpu.get_flag(Negative) == 1 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_rel;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc & 0xFF00) {
+                        cpu.cycles_remaining += 1;
+                    }
+
+                    cpu.pc = cpu.addr_abs;
+                }
+                0
+            }
+            Bne => {
+                if cpu.get_flag(Zero) == 0 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_rel;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc & 0x00FF) {
+                        cpu.cycles_remaining += 1;
+                    } 
+
+                    cpu.pc = cpu.addr_abs;
+                }
+
+                0
+            }
+            Bpl => {
+                if cpu.get_flag(Negative) == 0 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_rel;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc & 0xFF00) {
+                        cpu.cycles_remaining += 1;
+                    }
+
+                    cpu.pc = cpu.addr_abs;
+                }
+
+                0
+            }
+            Brk => {
+                cpu.pc += 1;
+
+                cpu.set_flag(InterruptDisable, true);
+                cpu.write(0x0100 + cpu.stk_ptr as u16, ((cpu.pc >> 8) & 0x00FF) as u8);
+                cpu.stk_ptr -= 1;
+                cpu.write(0x0100 + cpu.stk_ptr as u16, (cpu.pc & 0x00FF) as u8);
+                cpu.stk_ptr -= 1;
+
+                cpu.set_flag(BreakCommand, true);
+                cpu.write(0x0100 + cpu.stk_ptr as u16, cpu.status);
+                cpu.stk_ptr -= 1;
+                cpu.set_flag(BreakCommand, false);
+
+                cpu.pc = cpu.read(0xFFFE) as u16 | (cpu.read(0xFFFF) as u16) << 8;
+
+                0
+            }
+            Bvc => {
+                if cpu.get_flag(Overflow) == 0 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_rel;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc & 0xFF00) {
+                        cpu.cycles_remaining += 1;
+                    }
+
+                    cpu.pc = cpu.addr_abs;
+                }
+
+                0
+            }
+            Bvs => {
+                if cpu.get_flag(Overflow) == 1 {
+                    cpu.cycles_remaining += 1;
+                    cpu.addr_abs = cpu.pc + cpu.addr_abs;
+
+                    if (cpu.addr_abs & 0xFF00) != (cpu.pc & 0xFF00) {
+                        cpu.cycles_remaining += 1;
+                    }
+
+                    cpu.pc = cpu.addr_abs;
+                }
+                
+                0
+            }
+            Sbc => {
+                cpu.fetch();
+
+                let value = (cpu.fetched as u16) ^ 0x00FF;
+
+                let temp = cpu.a_reg as u16 + cpu.fetched as u16 + cpu.get_flag(Carry) as u16;
+
+                cpu.set_flag(Carry, temp > 255);
+                cpu.set_flag(Zero, (temp  & 0x00FF) != 0);
+                cpu.set_flag(Overflow, (((cpu.a_reg as u16 ^ temp) & (value ^ temp)) & 0x0080) != 0);
+                cpu.set_flag(Negative, (temp & 0x80) != 0);
+                
+                cpu.a_reg = (temp & 0x00FF) as u8;
+
+                1
+            }
+
             _ => 0
         }
     }
