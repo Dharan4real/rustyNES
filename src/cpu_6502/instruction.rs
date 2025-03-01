@@ -588,6 +588,122 @@ impl Opcode {
 
                 1
             }
+            Lsr => {
+                cpu.fetch();
+
+                let temp = cpu.fetched >> 1;
+
+                cpu.set_flag(Carry, (cpu.fetched & 0x01) != 1);
+                cpu.set_flag(Zero, temp == 0x00);
+                cpu.set_flag(Negative, (temp & 0x80) != 0);
+
+                if CPU_INSTRUCTIONS[cpu.opcode as usize].addr_mode == Implied{
+                    cpu.a_reg = temp;
+                }
+                else {
+                    cpu.write(cpu.addr_abs, temp);
+                }
+                
+                0
+            }
+            Nop => {
+                match cpu.opcode {
+                    0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => {
+                        return 1;
+                    }
+                    _ => {
+                        return 0;
+                    }
+                }
+            }
+            Ora => {
+                cpu.fetch();
+
+                cpu.a_reg |= cpu.fetched;
+
+                cpu.set_flag(Zero, cpu.a_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.a_reg & 0x80) != 0);
+
+                1
+            }
+            Pha => {
+                cpu.write(0x0100 + cpu.stk_ptr as u16, cpu.a_reg);
+                cpu.stk_ptr -= 1;
+
+                0
+            }
+            Php => {
+                cpu.write(0x0100 + cpu.stk_ptr as u16, cpu.status);
+                cpu.stk_ptr -= 1;
+
+                0
+            }
+            Pla => {
+                cpu.stk_ptr += 1;
+                cpu.a_reg = cpu.read(0x0100 + cpu.stk_ptr as u16);
+
+                cpu.set_flag(Zero, cpu.a_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.a_reg & 0x80) != 0);
+
+                0
+            }
+            Plp => {
+                cpu.stk_ptr += 1;
+                cpu.status = cpu.read(0x0100 + cpu.stk_ptr as u16);
+
+                cpu.set_flag(Unused, true);
+
+                0
+            }
+            Rol => {
+                cpu.fetch();
+
+                let temp = (cpu.fetched << 1) as u16 | cpu.get_flag(Carry) as u16;
+
+                cpu.set_flag(Carry, (temp & 0xFF00) != 0);
+                cpu.set_flag(Zero, (temp & 0x00FF) == 0x00);
+                cpu.set_flag(Negative, (temp & 0x0080) != 0);
+
+                if CPU_INSTRUCTIONS[cpu.opcode as usize].addr_mode == Implied {
+                    cpu.a_reg = (temp & 0x00FF) as u8;
+                }
+                else {
+                    cpu.write(cpu.addr_abs, (temp & 0x00FF) as u8);
+                }
+
+                0
+            }
+            Ror => {
+                cpu.fetch();
+
+                let temp = (cpu.fetched >> 1) as u16 | (cpu.get_flag(Carry) << 7) as u16;
+
+                cpu.set_flag(Carry, (temp & 0x01) != 0);
+                cpu.set_flag(Zero, (temp & 0x00FF) == 0x00);
+                cpu.set_flag(Negative, (temp & 0x0080) != 0);
+
+                if CPU_INSTRUCTIONS[cpu.opcode as usize].addr_mode == Implied {
+                    cpu.a_reg = (temp & 0x00FF) as u8;
+                }
+                else {
+                    cpu.write(cpu.addr_abs, (temp & 0x00FF) as u8);
+                }
+
+                0
+            }
+            Rti => {
+                cpu.stk_ptr += 1;
+                cpu.status = cpu.read(0x0100 + cpu.stk_ptr as u16);
+                cpu.status &= !(BreakCommand as u8);
+                cpu.status &= !(Unused as u8);
+
+                cpu.stk_ptr += 1;
+                cpu.pc = cpu.read(0x0100 + cpu.stk_ptr as u16) as u16;
+                cpu.stk_ptr += 1;
+                cpu.pc |= (cpu.read(0x0100 + cpu.stk_ptr as u16) as u16) << 8;
+
+                0
+            }
             Sbc => {
                 cpu.fetch();
 
