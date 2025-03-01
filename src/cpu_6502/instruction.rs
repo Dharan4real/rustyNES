@@ -421,8 +421,172 @@ impl Opcode {
 
                     cpu.pc = cpu.addr_abs;
                 }
+
+                0
+            }
+            Clc => {
+                cpu.unset_flag(Carry);
+
+                0
+            }
+            Cld => {
+                cpu.unset_flag(DecimalMode);
+
+                0
+            }
+            Cli => {
+                cpu.unset_flag(InterruptDisable);
+
+                0
+            }
+            Clv => {
+                cpu.unset_flag(Overflow);
+
+                0
+            }
+            Cmp => {
+                cpu.fetch();
+
+                let temp = cpu.a_reg as u16 - cpu.fetched as u16;
+
+                cpu.set_flag(Carry, cpu.a_reg >= cpu.fetched);
+                cpu.set_flag(Zero, temp & 0x00FF == 0x0000);
+                cpu.set_flag(Negative, (temp & 0x0080) != 0);
+
+                1
+            }
+            Cpx => {
+                cpu.fetch();
+
+                let temp = cpu.x_reg as u16 - cpu.fetched as u16;
+
+                cpu.set_flag(Carry, cpu.x_reg >= cpu.fetched);
+                cpu.set_flag(Zero, (temp & 0x00FF) != 0);
+                cpu.set_flag(Negative, (temp & 0x0080) != 0);
+
+                0
+            }
+            Cpy => {
+                cpu.fetch();
+
+                let temp = cpu.y_reg as u16 - cpu.fetched as u16;
+
+                cpu.set_flag(Carry, cpu.x_reg >= cpu.fetched);
+                cpu.set_flag(Zero, (temp & 0x00FF) != 0);
+                cpu.set_flag(Negative, (temp & 0x0080) != 0);
+
+                0
+            }
+            Dec => {
+                cpu.fetch();
+
+                let temp = cpu.fetched as u16 - 0x0001;
+                cpu.write(cpu.addr_abs, (temp & 0x00FF) as u8);
+
+                cpu.set_flag(Zero, (temp & 0x00FF) == 0x0000);
+                cpu.set_flag(Negative, (temp & 0x0080) != 0);
+
+                0
+            }
+            Dex => {
+                cpu.x_reg -= 1;
+
+                cpu.set_flag(Zero, cpu.x_reg == 0x0000);
+                cpu.set_flag(Negative, (cpu.x_reg & 0x80) != 0);
+
+                0
+            }
+            Dey => {
+                cpu.y_reg -= 1;
+
+                cpu.set_flag(Zero, cpu.y_reg == 0x0000);
+                cpu.set_flag(Negative, (cpu.y_reg & 0x80) != 0);
+
+                0
+            }
+            Eor => {
+                cpu.fetch();
+
+                cpu.a_reg ^= cpu.fetched;
+
+                cpu.set_flag(Zero, cpu.a_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.a_reg & 0x80) != 0);
+
+                1
+            }
+            Inc => {
+                cpu.fetch();
+
+                let temp = cpu.fetched + 1;
+                cpu.write(cpu.addr_abs, temp);
+
+                cpu.set_flag(Zero, temp == 0x00);
+                cpu.set_flag(Negative, (temp & 0x80) != 0);
+
+                0
+            }
+            Inx => {
+                cpu.x_reg += 1;
+
+                cpu.set_flag(Zero, cpu.x_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.x_reg & 0x80) != 0);
+
+                0
+            }
+            Iny => {
+                cpu.y_reg += 1;
+
+                cpu.set_flag(Zero, cpu.y_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.y_reg & 0x80) != 0);
+
+                0
+            }
+            Jmp => {
+                cpu.pc = cpu.addr_abs;
+
+                0
+            }
+            Jsr => {
+                cpu.pc -= 1;
+
+                cpu.write(0x0100 + cpu.stk_ptr as u16, ((cpu.pc >> 8) & 0x00FF) as u8);
+                cpu.stk_ptr -= 1;
+                cpu.write(0x0100 + cpu.stk_ptr as u16, (cpu.pc & 0x00FF) as u8);
+                cpu.stk_ptr -= 1;
+
+                cpu.pc = cpu.addr_abs;
                 
                 0
+            }
+            Lda => {
+                cpu.fetch();
+
+                cpu.a_reg = cpu.fetched;
+
+                cpu.set_flag(Zero, cpu.a_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.a_reg & 0x80) != 0);
+
+                1
+            }
+            Ldx => {
+                cpu.fetch();
+
+                cpu.x_reg = cpu.fetched;
+
+                cpu.set_flag(Zero, cpu.x_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.x_reg & 0x80) != 0);
+
+                1
+            }
+            Ldy => {
+                cpu.fetch();
+
+                cpu.y_reg = cpu.fetched;
+
+                cpu.set_flag(Zero, cpu.y_reg == 0x00);
+                cpu.set_flag(Negative, (cpu.y_reg & 0x80) != 0);
+
+                1
             }
             Sbc => {
                 cpu.fetch();
