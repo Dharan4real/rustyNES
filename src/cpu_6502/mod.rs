@@ -27,6 +27,17 @@ pub struct Cpu {
     next_instruction: Option<Instruction>,
 }
 
+pub enum Flags6502 {
+    Carry = 1 << 0,
+    Zero = 1 << 1,
+    InterruptDisable = 1 << 2,
+    DecimalMode = 1 << 3,
+    BreakCommand = 1 << 4, //no CPU effect
+    Unused = 1 << 5,          //no CPU effect
+    Overflow = 1 << 6,
+    Negative = 1 << 7,
+}
+
 //public
 impl Cpu {
     pub fn new() -> Self {
@@ -150,14 +161,145 @@ impl Cpu {
         }
     }
 
-    pub fn is_complete() -> bool {
-        false
+    pub fn is_complete(&self) -> bool {
+        self.cycles_remaining == 0
     }
 
-    pub fn disassemble(start: u16, stop: u16) -> FxHashMap<u16, String> {
-        let mut map: FxHashMap<u16, String> = FxHashMap::default();
+    pub fn disassemble(&self, start: u16, stop: u16) -> FxHashMap<u16, String> {
+        use AddressingMode::*;
+        use std::fmt::Write;
 
-        map
+        let mut addr = start as u32;
+        let mut value = 0x00;
+        let mut lo: u8 = 0x00;
+        let mut hi: u8 = 0x00;
+        let mut map_lines: FxHashMap<u16, String> = FxHashMap::default();
+        let mut line_addr: u16 = 0;
+
+        fn hex_converter(mut n: u32, d: u8) -> String {
+            let mut s = vec!['0'; d as usize];
+            let hex_chars = "0123456789ABCEDF".chars().collect::<Vec<char>>();
+
+            for i in (0..d).rev() {
+                s[i as usize] = hex_chars[(n & 0xF) as usize];
+                n >>= 4;
+            }
+
+            s.into_iter().collect()
+        }
+
+        while addr <= stop as u32 {
+            line_addr = addr as u16;
+
+            let mut inst = String::from("$".to_string() + hex_converter(addr, 4).as_str() + ": ");
+
+            let opcode;
+            unsafe {
+                opcode = (*self.bus).read(addr as u16, true);
+            }
+            addr += 1;
+            inst += CPU_INSTRUCTIONS[opcode as usize].name;
+            inst.push(' ');
+
+            match CPU_INSTRUCTIONS[opcode as usize].addr_mode {
+                Implied => {
+                    write!(inst, " {{IMP}}").unwrap();
+                }
+                Immediate => {
+                    unsafe {
+                        value = (*self.bus).read(addr as u16, true);
+                    }
+                    addr += 1;
+                    write!(inst, "#${} {{bar}}", hex_converter(value as u32, 2)).unwrap();
+                }
+                ZeroPage => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                    }
+                    addr += 1;
+                    hi = 0x00;
+                    write!(inst, "${} {{ZP0}}", hex_converter(lo as u32, 2)).unwrap();
+                }
+                ZeroPage_X => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                    }
+                    addr += 1;
+                    hi = 0x00;
+                    write!(inst, "${}, X {{ZPX}}", hex_converter(lo as u32, 2)).unwrap();
+                }
+                ZeroPage_Y => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                    }
+                    addr += 1;
+                    hi = 0x00;
+                    write!(inst, "${}, Y {{ZPY}}", hex_converter(lo as u32, 2)).unwrap();
+                }
+                Indirect_X => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                    }
+                    addr += 1;
+                    hi = 0x00;
+                    write!(inst, "(${}, X) {{IZX}}", hex_converter(lo as u32, 2)).unwrap();
+                }
+                Indirect_Y => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                    }
+                    addr += 0;
+                    hi = 0x00;
+                    write!(inst, "(${}), Y {{IZY}}", hex_converter(lo as u32, 2)).unwrap();
+                }
+                Absolute => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                        hi = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                    }
+                    write!(inst, "${} {{ABS}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                }
+                Absolute_X => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                        hi = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                    }
+                    write!(inst, "${}, X {{ABX}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                }
+                Absolute_Y => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                        hi = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                    }
+                    write!(inst, "${}, Y {{ABX}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                }
+                Indirect => {
+                    unsafe {
+                        lo = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                        hi = (*self.bus).read(addr as u16, true);
+                        addr += 1;
+                    }
+                    write!(inst, "(${}) {{IND}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                }
+                Relative => {
+                    unsafe {
+                        value = (*self.bus).read(addr as u16, true);
+                    }
+                    write!(inst, "${} [${}] {{REL}}", hex_converter(value as u32, 2), hex_converter(addr, 4)).unwrap();
+                }
+            }
+
+            map_lines.insert(line_addr, inst);
+        }
+
+        map_lines
     }
 }
 
@@ -187,17 +329,6 @@ impl Cpu {
             self.fetched = self.read(self.addr_abs);
         }
     }
-}
-
-pub enum Flags6502 {
-    Carry = 1 << 0,
-    Zero = 1 << 1,
-    InterruptDisable = 1 << 2,
-    DecimalMode = 1 << 3,
-    BreakCommand = 1 << 4, //no CPU effect
-    Unused = 1 << 5,          //no CPU effect
-    Overflow = 1 << 6,
-    Negative = 1 << 7,
 }
 
 #[cfg(test)]
