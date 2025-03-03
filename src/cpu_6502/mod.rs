@@ -259,7 +259,7 @@ impl Cpu {
                         hi = (*self.bus).read(addr as u16, true);
                         addr += 1;
                     }
-                    write!(inst, "${} {{ABS}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                    write!(inst, "${} {{ABS}}", hex_converter(((hi as u32 )<< 8) | lo as u32, 4)).unwrap();
                 }
                 Absolute_X => {
                     unsafe {
@@ -268,7 +268,7 @@ impl Cpu {
                         hi = (*self.bus).read(addr as u16, true);
                         addr += 1;
                     }
-                    write!(inst, "${}, X {{ABX}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                    write!(inst, "${}, X {{ABX}}", hex_converter(((hi as u32) << 8) | lo as u32, 4)).unwrap();
                 }
                 Absolute_Y => {
                     unsafe {
@@ -277,7 +277,7 @@ impl Cpu {
                         hi = (*self.bus).read(addr as u16, true);
                         addr += 1;
                     }
-                    write!(inst, "${}, Y {{ABX}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                    write!(inst, "${}, Y {{ABX}}", hex_converter(((hi as u32) << 8) | lo as u32, 4)).unwrap();
                 }
                 Indirect => {
                     unsafe {
@@ -286,7 +286,7 @@ impl Cpu {
                         hi = (*self.bus).read(addr as u16, true);
                         addr += 1;
                     }
-                    write!(inst, "(${}) {{IND}}", hex_converter((hi << 8) as u32 | lo as u32, 4)).unwrap();
+                    write!(inst, "(${}) {{IND}}", hex_converter(((hi as u32) << 8) | lo as u32, 4)).unwrap();
                 }
                 Relative => {
                     unsafe {
