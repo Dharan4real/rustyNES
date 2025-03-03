@@ -1,4 +1,5 @@
 pub mod instruction;
+mod tests;
 
 extern crate fxhash;
 
@@ -198,8 +199,7 @@ impl Cpu {
                 opcode = (*self.bus).read(addr as u16, true);
             }
             addr += 1;
-            inst += CPU_INSTRUCTIONS[opcode as usize].name;
-            inst.push(' ');
+            write!(inst, "{} ", CPU_INSTRUCTIONS[opcode as usize].opcode).unwrap();
 
             match CPU_INSTRUCTIONS[opcode as usize].addr_mode {
                 Implied => {
@@ -328,64 +328,5 @@ impl Cpu {
         if !(CPU_INSTRUCTIONS[self.opcode as usize].addr_mode == AddressingMode::Implied) {
             self.fetched = self.read(self.addr_abs);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_flags() {
-        let mut cpu = Cpu::new();
-
-        cpu.set_flag(Flags6502::Carry, true);
-        assert_eq!(cpu.get_flag(Flags6502::Carry),1);
-
-        cpu.set_flag(Flags6502::Zero, true);
-        assert_eq!(cpu.get_flag(Flags6502::Zero), 1);
-
-        cpu.set_flag(Flags6502::InterruptDisable, true);
-        assert_eq!(cpu.get_flag(Flags6502::InterruptDisable), 1);
-        
-        cpu.set_flag(Flags6502::DecimalMode, true);
-        assert_eq!(cpu.get_flag(Flags6502::DecimalMode), 1);
-        
-        cpu.set_flag(Flags6502::BreakCommand, true);
-        assert_eq!(cpu.get_flag(Flags6502::BreakCommand), 1);
-        
-        cpu.set_flag(Flags6502::Unused, true);
-        assert_eq!(cpu.get_flag(Flags6502::Unused), 1);
-        
-        cpu.set_flag(Flags6502::Overflow, true);
-        assert_eq!(cpu.get_flag(Flags6502::Overflow), 1);
-        
-        // cpu.set_flag(Flags6502::Negative, true);
-        assert_eq!(cpu.get_flag(Flags6502::Negative), 0);
-    }
-
-    #[test]
-    fn test_cpu_read_write() {
-        let mut cpu = Cpu::new();
-        let mut bus = Bus::new(&mut cpu);
-        cpu.connect_to_bus(&mut bus);
-        
-        cpu.write(1, 21);
-        assert_eq!(cpu.read(1), 21);
-    }
-
-    #[test]
-    fn test_reset_function() {
-        let mut cpu = Cpu::new();
-
-        cpu.a_reg = 0x01;
-        cpu.x_reg = 0x10;
-        cpu.y_reg = 0xDA;
-
-        cpu.reset();
-
-        assert_eq!((cpu.a_reg, cpu.x_reg, cpu.y_reg), (0x00, 0x00, 0x00));
-        assert_eq!(cpu.stk_ptr, 0xFD);
-        assert_eq!(cpu.cycles_remaining, 8);
     }
 }
