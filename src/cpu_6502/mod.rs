@@ -157,9 +157,8 @@ impl Cpu {
             self.set_flag(Flags6502::Unused, true);
 
             self.clock_count += 1;
-
-            self.cycles_remaining -= 1;
         }
+        self.cycles_remaining -= 1;
     }
 
     pub fn is_complete(&self) -> bool {
