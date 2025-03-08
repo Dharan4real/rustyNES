@@ -11,6 +11,7 @@ const NME_BASE: u16 = 0xFFFA;
 const RSR_BASE: u16 = 0xFFFC;
 const IRQ_BASE: u16 = 0xFFFE;
 
+#[derive(Debug)]
 pub struct Cpu {
     a_reg: u8,    // Accumulator Register
     x_reg: u8,    // X Register
@@ -78,8 +79,8 @@ impl Cpu {
 
     pub fn reset(&mut self) {
         self.addr_abs = RSR_BASE;
-        let lo: u16 = self.addr_abs + 0;
-        let hi: u16 = self.addr_abs + 1;
+        let lo: u16 = self.read(self.addr_abs + 0) as u16;
+        let hi: u16 = self.read(self.addr_abs + 1) as u16;
         self.pc = hi << 8 | lo;
 
         self.a_reg = 0x00;
@@ -155,9 +156,8 @@ impl Cpu {
             self.cycles_remaining += additional_cycle_addr_mode & additional_cycle_opcode;
 
             self.set_flag(Flags6502::Unused, true);
-
-            self.clock_count += 1;
         }
+        self.clock_count += 1;
         self.cycles_remaining -= 1;
     }
 
@@ -209,7 +209,7 @@ impl Cpu {
                         value = (*self.bus).read(addr as u16, true);
                     }
                     addr += 1;
-                    write!(inst, "#${} {{bar}}", hex_converter(value as u32, 2)).unwrap();
+                    write!(inst, "#${} {{IMM}}", hex_converter(value as u32, 2)).unwrap();
                 }
                 ZeroPage => {
                     unsafe {
@@ -316,11 +316,9 @@ impl Cpu {
     fn set_flag(&mut self, flag: Flags6502, v: bool) {
         if v {
             self.status |= flag as u8;
+        } else {
+            self.status &= !(flag as u8);
         }
-    }
-
-    fn unset_flag(&mut self, flag: Flags6502) {
-        self.status &= !(flag as u8);
     }
 
     fn fetch(&mut self) {

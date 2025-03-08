@@ -1,8 +1,8 @@
 use crate::cpu_6502::*;
 
 pub struct Bus {
-    ram: [u8; 64 * 1024],
-    cpu: *mut Cpu,
+    pub ram: [u8; 64 * 1024],
+    pub cpu: *mut Cpu,
 }
 
 impl Bus {
